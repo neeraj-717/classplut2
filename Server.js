@@ -1,4 +1,6 @@
 import express from "express";
+import { createServer } from "http";
+import { Server } from "socket.io";
 import cors from "cors";
 import mongoose from "mongoose";
 import multer from "multer";
@@ -11,130 +13,137 @@ import Liveuplod from "./model/Liveuplod.js";
 import User from "./model/User.js";
 import Batches from "./model/Batches.js";
 import courses from "./model/Courses.js";
-import nodemailer from 'nodemailer';
-import * as crypto from 'crypto';
+import nodemailer from "nodemailer";
+import * as crypto from "crypto";
 import tokenVerify from "./middleware/tokenvarify.js";
-import dotenv from 'dotenv';
+import dotenv from "dotenv";
 import Checkout from "./model/Checkout.js";
+
 dotenv.config();
 
+// ========== Configurations ==========
 const port = process.env.PORT || 5000;
 const jwtSecret = process.env.JWT_SECRET;
 const mongoURI = process.env.MONGO_URI;
 
-mongoose.connect(mongoURI)
-  .then(() => console.log("DB connected"))
-  .catch(err => console.error("DB connection error:", err));
+// ========== MongoDB Connection ==========
+mongoose
+  .connect(mongoURI)
+  .then(() => console.log("✅ MongoDB Connected"))
+  .catch((err) => console.error("DB connection error:", err));
 
-
+// ========== App + Server + Socket Setup ==========
 const app = express();
+const server = createServer(app);
+
 app.use(cors());
 app.use(express.json());
 
+const io = new Server(server, { cors: { origin: "*" } });
+
+let adminSocket = null;
+
+io.on("connection", (socket) => {
+  // console.log("Connected:", socket.id);
+
+ 
+
+
+
+  socket.on("role", (role) => {
+    if (role === "admin") {
+      adminSocket = socket.id;
+      console.log("Admin connected:", socket.id);
+    } else {
+      if (adminSocket) io.to(adminSocket).emit("new-viewer", socket.id);
+      console.log("User connected:", socket.id);
+    }
+    
+  });
+
+
+
+ socket.on("live-start", (Liveclass_Id) => {
+
+    // Broadcast to all users except the admin
+    socket.broadcast.emit("notify-live", {
+      Liveclass_Id,
+      message: "Admin started a live class! Click to join ",
+    });
+    // console.log(" Live stream started, notifying users...");
+  });
+
+  
+
+  socket.on("offer", ({ offer, to }) => {
+    io.to(to).emit("offer", { offer, from: socket.id });
+  });
+
+  socket.on("answer", ({ answer, to }) => {
+   
+    io.to(to).emit("answer", { answer, from: socket.id });
+  });
+
+  socket.on("ice-candidate", ({ candidate, to }) => {
+   
+    io.to(to).emit("ice-candidate", { candidate, from: socket.id });
+  });
+
+  socket.on("disconnect", () => {
+    if (socket.id === adminSocket) adminSocket = null;
+  });
+});
+
+
+// ========== Static File Serving ==========
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-app.use('/images', express.static('images'));
 
-// Connect to MongoDB
-
-
-// Public folder for uploaded files
-
-// app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use("/images", express.static("images"));
+app.use(
+  "/uploads",
+  express.static(path.join(__dirname, "uploads"), {
+    setHeaders: (res, path) => {
+      res.set("Cache-Control", "no-store");
+      res.set("Accept-Ranges", "bytes");
+    },
+  })
+);
 app.use("/Liveuplodes", express.static(path.join(__dirname, "Liveuplodes")));
-app.use("/uploads", express.static(path.join(__dirname, "uploads"), {
-  setHeaders: (res, path) => {
-    res.set("Cache-Control", "no-store"); // disable caching
-    res.set("Accept-Ranges", "bytes");    // allow partial video load
-  }
-}));
-
-
-
 
 // ==========================
 // Multer setup for regular videos
 // ==========================
-
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "uploads/");
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + "-" + file.originalname);
-  },
+  destination: (req, file, cb) => cb(null, "uploads/"),
+  filename: (req, file, cb) => cb(null, Date.now() + "-" + file.originalname),
 });
 const upload = multer({ storage });
 
-// Upload and save video
-// app.post("/videos", upload.single("video"), async (req, res) => {
-//   try {
-//     if (!req.file) return res.json({ status: false, msg: "No video uploaded" });
-
-//     let newVideo = new Videos({
-//       title: req.file.originalname,
-//       path: req.file.path.replace(/\\/g, "/"),
-//     });
-
-//     await newVideo.save();
-//     res.json({ status: true, msg: "Video uploaded & saved!", data: newVideo });
-//   } catch (error) {
-//     res.json({ status: false, msg: error.message });
-//   }
-// });
-
-
 app.post("/videos", upload.single("video"), async (req, res) => {
   try {
-    if (!req.file) {
+    if (!req.file)
       return res.status(400).json({ status: false, msg: "No video uploaded" });
-    }
-    console.log(req.body);
-    // Correct relative path (uploads/xxx.mp4)
+
     const filePath = req.file.path.replace(/\\/g, "/");
 
-    // Full accessible URL for frontend
-    const fileUrl = `${req.protocol}://${req.get("host")}/${filePath}`;
-
-    // Save in DB
     const newVideo = new Videos({
       title: req.body.title || req.file.originalname,
-      path: filePath,   // stored path (uploads/...)
+      path: filePath,
       CourseId: req.body.courseId,
-      Publish: req.body.Publish  // direct playable link
+      Publish: req.body.Publish,
     });
 
     await newVideo.save();
-
     res.status(201).json({
       status: true,
       msg: "Video uploaded & saved!",
       data: newVideo,
     });
   } catch (error) {
-    console.error("Video upload error:", error);
     res.status(500).json({ status: false, msg: error.message });
   }
 });
-
-app.post('/deletevideo', async (req, res) => {
-  const { id } = req.body;
-  await Videos.findByIdAndDelete(id); // Or your DB logic
-  res.json({ status: true });
-});
-
-app.post('/updatevideotitle', async (req, res) => {
-  const { id, title } = req.body;
-  await Videos.findByIdAndUpdate(id, { title });
-  res.json({ status: true });
-});
-
-app.post('/updatevideopublish', async (req, res) => {
-  const { id, publish } = req.body;
-  await Videos.findByIdAndUpdate(id, { Publish: publish });
-  res.json({ status: true });
-});
-
 
 app.get("/getvideos", async (req, res) => {
   try {
@@ -145,43 +154,62 @@ app.get("/getvideos", async (req, res) => {
   }
 });
 
+app.post("/deletevideo", async (req, res) => {
+  const { id } = req.body;
+  await Videos.findByIdAndDelete(id);
+  res.json({ status: true });
+});
+
+app.post("/updatevideotitle", async (req, res) => {
+  const { id, title } = req.body;
+  await Videos.findByIdAndUpdate(id, { title });
+  res.json({ status: true });
+});
+
+app.post("/updatevideopublish", async (req, res) => {
+  const { id, publish } = req.body;
+  await Videos.findByIdAndUpdate(id, { Publish: publish });
+  res.json({ status: true });
+});
+
 // ==========================
-// Multer setup for live classes
+// Multer setup for live class uploads
 // ==========================
 const Liveclassstorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "Liveuplodes/");
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + "-" + file.originalname);
-  },
+  destination: (req, file, cb) => cb(null, "Liveuplodes/"),
+  filename: (req, file, cb) => cb(null, Date.now() + "-" + file.originalname),
 });
 const liveupload = multer({ storage: Liveclassstorage });
 
-// Upload and save live class video
 app.post("/liveclasssvideos", liveupload.single("video"), async (req, res) => {
   try {
-    if (!req.file) return res.json({ status: false, msg: "No video uploaded" });
+    if (!req.file)
+      return res.json({ status: false, msg: "No video uploaded" });
 
-    let newclass = new Liveuplod({
+    const newclass = new Liveuplod({
       title: req.file.originalname,
       path: req.file.path.replace(/\\/g, "/"),
       Liveclass_Id: req.body.Liveclass_Id,
     });
 
     await newclass.save();
-    res.json({ status: true, msg: "Live class video uploaded & saved!", data: newclass });
+    res.json({
+      status: true,
+      msg: "Live class video uploaded & saved!",
+      data: newclass,
+    });
   } catch (error) {
     res.json({ status: false, msg: error.message });
   }
 });
 
-
-
 app.get("/getlivevideos", async (req, res) => {
   let data = await Liveuplod.find({});
   res.json({ status: true, vdata: data });
 });
+
+// ========== Start Server ==========
+
 
 
 
@@ -717,6 +745,6 @@ app.get("/checkoutget", tokenVerify, async (req, res) => {
 
 
 // Start server
-app.listen(port, () => {
+server.listen(port, () => {
   console.log("Server running on http://localhost:5000");
 });
