@@ -7,8 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "nodemon server.js",
-    "backend": "nodemon server.js",
+    "start": "node Server.js",
+    "backend": "nodemon Server.js",
     "all": "concurrently \"npm run backend\" \"npm run dev\""
   },
   "dependencies": {
