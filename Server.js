@@ -62,9 +62,11 @@ io.on("connection", (socket) => {
   });
 
 
-
- socket.on("live-start", (Liveclass_Id) => {
-
+    
+  
+  
+  socket.on("live-start", (Liveclass_Id) => {
+    
     // Broadcast to all users except the admin
     socket.broadcast.emit("notify-live", {
       Liveclass_Id,
@@ -72,29 +74,32 @@ io.on("connection", (socket) => {
     });
     // console.log(" Live stream started, notifying users...");
   });
-
   
-
+  
+  
   socket.on("offer", ({ offer, to }) => {
     io.to(to).emit("offer", { offer, from: socket.id });
   });
-
+  
   socket.on("answer", ({ answer, to }) => {
-   
+    
     io.to(to).emit("answer", { answer, from: socket.id });
   });
-
+  
   socket.on("ice-candidate", ({ candidate, to }) => {
-   
+    
     io.to(to).emit("ice-candidate", { candidate, from: socket.id });
   });
-
+  
   socket.on("disconnect", () => {
     if (socket.id === adminSocket) adminSocket = null;
   });
 });
 
 
+app.post("/go",(res,req)=>{
+  console.log("object")
+})
 // ========== Static File Serving ==========
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
