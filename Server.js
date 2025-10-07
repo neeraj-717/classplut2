@@ -42,7 +42,7 @@ app.use(express.json());
 const io = new Server(server, { cors: { origin: "*" } });
 
 let adminSocket = null;
-
+let viewers =[];
 io.on("connection", (socket) => {
   // console.log("Connected:", socket.id);
 
@@ -69,23 +69,20 @@ io.on("connection", (socket) => {
   });
   
  
-  socket.on("join-live", (user) => {
-    // Add to viewers list
-    const userData = { socketId: socket.id, ...user };
-    viewers.push(userData);
+  // socket.on("join-live", (user) => {
+  //   // Add to viewers list
+  //   const userData = { socketId: socket.id, ...user };
+    
 
-    console.log("User joined live:", userData);
+  //   if (adminSocket) {
+  //     io.to(adminSocket).emit("viewer-joined", userData);
+  //   }
 
-    // Notify admin if online
-    if (adminSocket) {
-      io.to(adminSocket).emit("viewer-joined", userData);
-    }
-
-    // (Optional) confirm back to user
-    socket.emit("joined-confirmation", {
-      message: `Welcome ${user.name}, you joined LiveClass ${user.courseId}`,
-    });
-  });
+  //   // (Optional) confirm back to user
+  //   socket.emit("joined-confirmation", {
+  //     message: `Welcome ${user.name}, you joined LiveClass ${user.courseId}`,
+  //   });
+  // });
   
   socket.on("offer", ({ offer, to }) => {
     io.to(to).emit("offer", { offer, from: socket.id });
@@ -105,7 +102,6 @@ io.on("connection", (socket) => {
     if (socket.id === adminSocket) adminSocket = null;
   });
 });
-
 
 app.post("/go",(res,req)=>{
   console.log("object")
