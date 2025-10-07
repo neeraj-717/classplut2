@@ -21,7 +21,6 @@ import Checkout from "./model/Checkout.js";
 
 dotenv.config();
 
-// ========== Configurations ==========
 const port = process.env.PORT || 5000;
 const jwtSecret = process.env.JWT_SECRET;
 // const mongoURI = process.env.MONGODB_URI;  
@@ -47,10 +46,6 @@ let adminSocket = null;
 io.on("connection", (socket) => {
   // console.log("Connected:", socket.id);
 
- 
-
-
-
   socket.on("role", (role) => {
     if (role === "admin") {
       adminSocket = socket.id;
@@ -63,20 +58,34 @@ io.on("connection", (socket) => {
   });
 
 
-    
-  
-  
   socket.on("live-start", (Liveclass_Id) => {
-    
     // Broadcast to all users except the admin
     socket.broadcast.emit("notify-live", {
       Liveclass_Id,
       message: "Admin started a live class! Click to join ",
     });
+
     // console.log(" Live stream started, notifying users...");
   });
   
-  
+ 
+  socket.on("join-live", (user) => {
+    // Add to viewers list
+    const userData = { socketId: socket.id, ...user };
+    viewers.push(userData);
+
+    console.log("User joined live:", userData);
+
+    // Notify admin if online
+    if (adminSocket) {
+      io.to(adminSocket).emit("viewer-joined", userData);
+    }
+
+    // (Optional) confirm back to user
+    socket.emit("joined-confirmation", {
+      message: `Welcome ${user.name}, you joined LiveClass ${user.courseId}`,
+    });
+  });
   
   socket.on("offer", ({ offer, to }) => {
     io.to(to).emit("offer", { offer, from: socket.id });
