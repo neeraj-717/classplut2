@@ -816,6 +816,11 @@ app.get("/checkoutget", tokenVerify, async (req, res) => {
   }
 });
 
+app.get("/",(req,res)=>{
+  res.json({
+    msg:"run "
+  })
+})
 
 // Start server
 server.listen(port, () => {
