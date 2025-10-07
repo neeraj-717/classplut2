@@ -24,13 +24,17 @@ dotenv.config();
 // ========== Configurations ==========
 const port = process.env.PORT || 5000;
 const jwtSecret = process.env.JWT_SECRET;
-const mongoURI = process.env.MONGO_URI;
+// const mongoURI = process.env.MONGODB_URI;  
 
 // ========== MongoDB Connection ==========
-mongoose
-  .connect(mongoURI)
-  .then(() => console.log("✅ MongoDB Connected"))
-  .catch((err) => console.error("DB connection error:", err));
+
+
+mongoose.connect(process.env.MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
+.then(() => console.log("✅ Connected to MongoDB"))
+.catch((err) => console.error("❌ DB connection error:", err));
 
 // ========== App + Server + Socket Setup ==========
 const app = express();
