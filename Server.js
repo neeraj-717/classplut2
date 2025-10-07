@@ -29,10 +29,7 @@ const jwtSecret = process.env.JWT_SECRET;
 // ========== MongoDB Connection ==========
 
 
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
+mongoose.connect(process.env.MONGODB_URI)
 .then(() => console.log("✅ Connected to MongoDB"))
 .catch((err) => console.error("❌ DB connection error:", err));
 
@@ -516,7 +513,7 @@ app.post("/Addcourseinuser", async (req, res) => {
 
 app.post("/request-otp", async (req, res) => {
   const { email, username, role, password } = req.body;
-
+  console.log(req.body,"login")
   if (!email || !username || !password) {
     return res.status(400).json({ status: false, msg: "Email, Username, and Password are required" });
   }
@@ -573,7 +570,7 @@ app.post("/request-otp", async (req, res) => {
       await logindata.save();
     }
 
-    res.json({ status: true, msg: "OTP sent to email" });
+    res.json({ status: 200, msg: "OTP sent to email" });
 
   } catch (error) {
     res.status(500).json({ status: false, msg: "Failed to send OTP", error: error.message });
@@ -654,7 +651,7 @@ app.post("/request-otp", async (req, res) => {
 
 app.post("/verify-otp", async (req, res) => {
   const { email, otp } = req.body;
-
+  console.log(req.body,"reqotp")
   if (!email || !otp) {
     return res.status(400).json({ status: false, msg: "Email and OTP are required" });
   }
