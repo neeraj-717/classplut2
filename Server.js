@@ -511,9 +511,77 @@ app.post("/Addcourseinuser", async (req, res) => {
 
 // request-otp login with oto ==============----------------==================------------
 
+// app.post("/request-otp", async (req, res) => {
+//   const { email, username, role, password } = req.body;
+//   console.log(req.body,"login")
+//   if (!email || !username || !password) {
+//     return res.status(400).json({ status: false, msg: "Email, Username, and Password are required" });
+//   }
+
+//   const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+//   let transporter = nodemailer.createTransport({
+//     service: 'gmail',
+//     auth: {
+//       user: "jakhar365365@gmail.com",
+//       pass: "uvdz tbyt oxch qmkf" // ❗ Use environment variable in production
+//     }
+//   });
+
+//   const mailOptions = {
+//     from: "jakhar365365@gmail.com",
+//     to: email,
+//     subject: "Your OTP Code",
+//     text: `Your OTP code is ${otp}`,
+//   };
+
+//   try {
+//     await transporter.sendMail(mailOptions);
+
+//     const existingLogin = await Login.findOne({ email });
+
+//     if (existingLogin) {
+//       // Check if username and password match
+//       if (
+
+//         existingLogin.password !== password
+//       ) {
+//         return res.status(400).json({
+//           status: false,
+//           msg: "User already exists with different username or password",
+//         });
+//       }
+
+
+//       existingLogin.otp = otp;
+//       existingLogin.role = role || existingLogin.role;
+
+//       await existingLogin.save();
+//     } else {
+//       // New user
+//       const logindata = new Login({
+//         email,
+//         otp,
+//         password,
+//         username,
+//         role: role || "user",
+//         createdAt: new Date(),
+//       });
+//       await logindata.save();
+//     }
+
+//     res.status(200).json({ msg: "OTP sent successfully" });
+
+
+//   } catch (error) {
+//     res.status(500).json({ status: false, msg: "Failed to send OTP", error: error.message });
+//   }
+// });
+
 app.post("/request-otp", async (req, res) => {
   const { email, username, role, password } = req.body;
-  console.log(req.body,"login")
+  console.log("Request body:", req.body);
+
   if (!email || !username || !password) {
     return res.status(400).json({ status: false, msg: "Email, Username, and Password are required" });
   }
@@ -521,15 +589,18 @@ app.post("/request-otp", async (req, res) => {
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
   let transporter = nodemailer.createTransport({
-    service: 'gmail',
+    service: "gmail",
     auth: {
-      user: "jakhar365365@gmail.com",
-      pass: "uvdz tbyt oxch qmkf" // ❗ Use environment variable in production
-    }
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS, // or OAuth2 setup
+    },
+    connectionTimeout: 10000,
+    greetingTimeout: 5000,
+    socketTimeout: 10000,
   });
 
   const mailOptions = {
-    from: "jakhar365365@gmail.com",
+    from: process.env.SMTP_USER,
     to: email,
     subject: "Your OTP Code",
     text: `Your OTP code is ${otp}`,
@@ -537,28 +608,22 @@ app.post("/request-otp", async (req, res) => {
 
   try {
     await transporter.sendMail(mailOptions);
+    console.log("OTP email sent to:", email);
 
     const existingLogin = await Login.findOne({ email });
 
     if (existingLogin) {
-      // Check if username and password match
-      if (
-
-        existingLogin.password !== password
-      ) {
+      if (existingLogin.password !== password) {
         return res.status(400).json({
           status: false,
           msg: "User already exists with different username or password",
         });
       }
 
-
       existingLogin.otp = otp;
       existingLogin.role = role || existingLogin.role;
-
       await existingLogin.save();
     } else {
-      // New user
       const logindata = new Login({
         email,
         otp,
@@ -570,12 +635,14 @@ app.post("/request-otp", async (req, res) => {
       await logindata.save();
     }
 
-    res.json({ status: 200, msg: "OTP sent to email" });
+    return res.status(200).json({ status: true, msg: "OTP sent successfully" });
 
   } catch (error) {
-    res.status(500).json({ status: false, msg: "Failed to send OTP", error: error.message });
+    console.error("Error sending OTP:", error);
+    return res.status(500).json({ status: false, msg: "Failed to send OTP", error: error.message });
   }
 });
+
 
 // app.post("/reset-password", async (req, res) => {
 //   const { email, otp, newUsername, newPassword } = req.body;
