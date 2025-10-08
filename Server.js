@@ -18,6 +18,7 @@ import * as crypto from "crypto";
 import tokenVerify from "./middleware/tokenvarify.js";
 import dotenv from "dotenv";
 import Checkout from "./model/Checkout.js";
+import { start } from "repl";
 
 dotenv.config();
 
@@ -392,15 +393,15 @@ app.get("/userBatches", tokenVerify, async (req, res) => {
   })
 })
 
-app.get("/latestcourse", async (req, res) => {
-  try {
-    const latest = await Batches.findOne().sort({ createdAt: -1 });
-    res.json({ Batches: latest });
-    console.log(latest._id, "lattest")
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// app.get("/latestcourse", async (req, res) => {
+//   try {
+//     const latest = await Batches.findOne().sort({ createdAt: -1 });
+//     res.json({ Batches: latest });
+//     console.log(latest._id, "lattest")
+//   } catch (err) {
+//     res.status(500).json({ error: err.message });
+//   }
+// });
 
 
 // Users---------------------------------=================----------------------======================--
@@ -423,7 +424,37 @@ app.get("/latestcourse", async (req, res) => {
 //   })
 // })
 
+app.post("/deletebatch",async(req,res)=>{
+  // console.log(req.body)
+  if (!req.body.batchid) {
+      return res.status(400).json({ status: false, msg: "Batch ID is required." });
+    }
+  await Batches.findByIdAndDelete(req.body.batchid)
+  res.json({
+    status:true,
+    msg:"Delete success"
+  })
+})
 
+app.post("/Edit_Batch", async (req, res) => {
+  let { _id, Batchname, subject, users } = req.body.formData;
+
+if (!_id) {
+      return res.status(400).json({ status: false, msg: "Batch ID is required." });
+    }
+  let updatedata = {
+    Batchname: Batchname,
+    subject: subject,
+    Users: users,
+  };
+
+  await Batches.findByIdAndUpdate(_id, updatedata);
+
+  res.json({
+    status: true,
+    msg: "updated"
+  });
+});
 
 
 app.post("/Updatebatchid", async (req, res) => {
