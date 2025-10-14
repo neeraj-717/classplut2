@@ -19,6 +19,7 @@ import tokenVerify from "./middleware/tokenvarify.js";
 import dotenv from "dotenv";
 import Checkout from "./model/Checkout.js";
 import { start } from "repl";
+import message from "./model/Chat_massage.js";
 
 dotenv.config();
 
@@ -30,8 +31,8 @@ const jwtSecret = process.env.JWT_SECRET;
 
 
 mongoose.connect(process.env.MONGODB_URI)
-.then(() => console.log("✅ Connected to MongoDB"))
-.catch((err) => console.error("❌ DB connection error:", err));
+.then(() => console.log(" Connected to MongoDB"))
+.catch((err) => console.error(" DB connection error:", err));
 
 // ========== App + Server + Socket Setup ==========
 const app = express();
@@ -58,33 +59,50 @@ io.on("connection", (socket) => {
     
   });
 
-
+  
   socket.on("live-start", (Liveclass_Id) => {
-    // Broadcast to all users except the admin
+    
     socket.broadcast.emit("notify-live", {
       Liveclass_Id,
       message: "Admin started a live class! Click to join ",
     });
-
-    // console.log(" Live stream started, notifying users...");
+    
+    console.log(" Live stream started, notifying users...");
   });
   
- 
-  // socket.on("join-live", (user) => {
-  //   // Add to viewers list
-  //   const userData = { socketId: socket.id, ...user };
+
+  socket.on("chatMessage", async (msg) => {
+    try {
+      
+      const newMsg = new message(msg);
+      await newMsg.save();
+      console.log("Message saved:", msg.text);
+
+      // Broadcast to everyone
+      io.emit("chatMessage", msg);
+    } catch (err) {
+      console.error("Error saving message:", err);
+    }
+  });
+
+
+  socket.on("join-live", (user) => {
+    // Add to viewers list
+    const userData = { socketId: socket.id, ...user };
     
 
-  //   if (adminSocket) {
-  //     io.to(adminSocket).emit("viewer-joined", userData);
-  //   }
+    if (adminSocket) {
+      io.to(adminSocket).emit("viewer-joined", userData);
+    }
 
-  //   // (Optional) confirm back to user
-  //   socket.emit("joined-confirmation", {
-  //     message: `Welcome ${user.name}, you joined LiveClass ${user.courseId}`,
-  //   });
-  // });
+    // (Optional) confirm back to user
+    socket.emit("joined-confirmation", {
+      message: `Welcome ${user.name}, you joined LiveClass ${user.courseId}`,
+    });
+  });
   
+  
+
   socket.on("offer", ({ offer, to }) => {
     io.to(to).emit("offer", { offer, from: socket.id });
   });
@@ -103,6 +121,14 @@ io.on("connection", (socket) => {
     if (socket.id === adminSocket) adminSocket = null;
   });
 });
+
+// livechates
+
+app.get("/messages", async (req, res) => {
+  const msgs = await message.find().sort({ _id: 1 });
+  res.json(msgs);
+});
+
 
 app.post("/go",(res,req)=>{
   console.log("object")
@@ -437,7 +463,7 @@ app.post("/deletebatch",async(req,res)=>{
 })
 
 app.post("/Edit_Batch", async (req, res) => {
-  let { _id, Batchname, subject, users } = req.body.formData;
+  let { _id, Batchname, subject, Users } = req.body.formData;
 
 if (!_id) {
       return res.status(400).json({ status: false, msg: "Batch ID is required." });
@@ -445,9 +471,9 @@ if (!_id) {
   let updatedata = {
     Batchname: Batchname,
     subject: subject,
-    Users: users,
+    Users: Users,
   };
-
+  // console.log(updatedata)
   await Batches.findByIdAndUpdate(_id, updatedata);
 
   res.json({
@@ -493,7 +519,7 @@ app.post("/Updatebatchid", async (req, res) => {
 
     res.json({
       status: true,
-      message: "Course ID + Course Name users me add ho gaye ✅",
+      message: "Course ID + Course Name users me add ho gaye ",
       result,
       batchUpdateResult,
       updatedUsers
@@ -533,7 +559,7 @@ app.post("/Addcourseinuser", async (req, res) => {
 
     res.json({
       status: true,
-      message: "Course ID + Course Name users me add ho gaye ✅",
+      message: "Course ID + Course Name users me add ho gaye ",
       result,
       updatedUsers
     });
