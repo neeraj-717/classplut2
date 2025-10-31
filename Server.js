@@ -20,7 +20,8 @@ import dotenv from "dotenv";
 import Checkout from "./model/Checkout.js";
 import { start } from "repl";
 import message from "./model/Chat_massage.js";
-
+import Brevo from 'sib-api-v3-sdk';
+import axios from "axios";
 dotenv.config();
 
 const port = process.env.PORT || 5000;
@@ -37,8 +38,14 @@ mongoose.connect(process.env.MONGODB_URI)
 // ========== App + Server + Socket Setup ==========
 const app = express();
 const server = createServer(app);
-
-app.use(cors());
+app.use(cors({
+  origin: [
+    "http://localhost:5000",  // ✅ no trailing slash
+    "http://localhost:5173"                     // ✅ optional for local testing (Vite)
+  ],
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  credentials: true
+}));
 app.use(express.json());
 
 const io = new Server(server, { cors: { origin: "*" } });
@@ -641,72 +648,87 @@ app.post("/Addcourseinuser", async (req, res) => {
 // });
 
 app.post("/request-otp", async (req, res) => {
-  const { email, username, role, password } = req.body;
-  console.log("Request body:", req.body);
-
-  if (!email || !username || !password) {
-    return res.status(400).json({ status: false, msg: "Email, Username, and Password are required" });
-  }
-
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
-
-  let transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS, // or OAuth2 setup
-    },
-    connectionTimeout: 10000,
-    greetingTimeout: 5000,
-    socketTimeout: 10000,
-  });
-
-  const mailOptions = {
-    from: process.env.SMTP_USER,
-    to: email,
-    subject: "Your OTP Code",
-    text: `Your OTP code is ${otp}`,
-  };
-
   try {
-    await transporter.sendMail(mailOptions);
-    console.log("OTP email sent to:", email);
+    const { email, username, role, password } = req.body;
+    console.log("Request body:", req.body);
 
+    if (!email || !username || !password) {
+      return res.status(400).json({
+        status: false,
+        msg: "Email, Username, and Password are required",
+      });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    if (!process.env.BREVO_API_KEY || !process.env.EMAIL_FROM) {
+      return res.status(500).json({ msg: "Brevo not configured properly" });
+    }
+
+    // ✅ Email Payload
+    const payload = {
+      sender: { name: "One Roof Education", email: process.env.EMAIL_FROM },
+      to: [{ email }],
+      subject: "Your OTP Code",
+      htmlContent: `<h2>Your OTP is: <b>${otp}</b></h2><p>Expires in 10 minutes.</p>`,
+    };
+
+    // ✅ Send Email using Brevo API via axios
+    await axios.post("https://api.brevo.com/v3/smtp/email", payload, {
+      headers: {
+        "api-key": process.env.BREVO_API_KEY,
+        "Content-Type": "application/json",
+      },
+      timeout: 10000,
+    });
+
+    console.log(`OTP email sent to: ${email}`);
+
+    // ✅ DB save / update
     const existingLogin = await Login.findOne({ email });
 
     if (existingLogin) {
       if (existingLogin.password !== password) {
         return res.status(400).json({
           status: false,
-          msg: "User already exists with different username or password",
+          msg: "User already exists with a different password",
         });
       }
 
       existingLogin.otp = otp;
       existingLogin.role = role || existingLogin.role;
+      existingLogin.expiresAt = expiresAt;
       await existingLogin.save();
     } else {
-      const logindata = new Login({
+      await Login.create({
         email,
-        otp,
-        password,
         username,
+        password,
+        otp,
         role: role || "user",
+        expiresAt,
         createdAt: new Date(),
       });
-      await logindata.save();
     }
 
-    return res.status(200).json({ status: true, msg: "OTP sent successfully" });
+    return res.status(200).json({
+      status: true,
+      msg: "OTP sent successfully via Brevo",
+    });
 
   } catch (error) {
-    console.error("Error sending OTP:", error);
-    return res.status(500).json({ status: false, msg: "Failed to send OTP", error: error.message });
+    console.error("OTP send error:", error);
+    return res.status(500).json({
+      status: false,
+      msg: "Failed to send OTP",
+      error: error.message,
+    });
   }
 });
 
-
 // app.post("/reset-password", async (req, res) => {
+  
 //   const { email, otp, newUsername, newPassword } = req.body;
 
 //   // Check if required fields are provided
@@ -756,7 +778,7 @@ app.post("/request-otp", async (req, res) => {
 
 //     // Update username and password
 //     user.username = newUsername;
-//     user.password = newPassword; // ❗Hash in production
+//     user.password = newPassword; // Hash in production
 //     user.otp = null; // Clear OTP
 //     user.createdAt = new Date(); // Update time
 
@@ -776,7 +798,9 @@ app.post("/request-otp", async (req, res) => {
 //   }
 // });
 
+
 // "/verify-otp"----------------------------------------------------
+
 
 app.post("/verify-otp", async (req, res) => {
   const { email, otp } = req.body;
