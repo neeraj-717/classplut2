@@ -38,14 +38,20 @@ mongoose.connect(process.env.MONGODB_URI)
 // ========== App + Server + Socket Setup ==========
 const app = express();
 const server = createServer(app);
+
+const allowedOrigins = [
+  "https://classplusfrontend.vercel.app", // your frontend
+  "http://localhost:3000"                 // for local dev (optional)
+];
+
 app.use(cors({
-  origin: [
-    "http://localhost:5000",  // ✅ no trailing slash
-    "http://localhost:5173"                     // ✅ optional for local testing (Vite)
-  ],
-  methods: ["GET", "POST", "PUT", "DELETE"],
-  credentials: true
+  origin: allowedOrigins,
+  credentials: true,
 }));
+
+// Or allow all temporarily (not recommended for prod)
+// app.use(cors());
+
 app.use(express.json());
 
 const io = new Server(server, { cors: { origin: "*" } });
